@@ -3,7 +3,6 @@ import { companies } from '../lib/fake-data';
 
 function CompanyPage() {
   const { companyId } = useParams();
-
   const company = companies.find((company) => company.id === companyId);
   return (
     <div>
