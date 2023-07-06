@@ -1,14 +1,29 @@
-import { GraphQLClient, gql } from 'graphql-request';
+import {
+  ApolloClient,
+  ApolloLink,
+  concat,
+  createHttpLink,
+  gql,
+  InMemoryCache
+} from '@apollo/client';
 import { getAccessToken } from '../auth'
 
-const client = new GraphQLClient('http://localhost:9000/graphql', {
-  headers: () => {
-    const accessToken = getAccessToken();
-    return accessToken
-      ? { 'Authorization': `Bearer ${accessToken}` }
-      : {}
-  }
-})
+const httpLink = createHttpLink({ uri: 'http://localhost:9000/graphql' });
+
+const customLink = new ApolloLink((operation, forward) => {
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    operation.setContext({
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+  };
+  return forward(operation);
+});
+
+const apolloClient = new ApolloClient({
+  link: concat(customLink, httpLink),
+  cache: new InMemoryCache()
+});
 
 export const createJob = async ({ title, description }) => {
   const mutation = gql`
@@ -17,11 +32,13 @@ export const createJob = async ({ title, description }) => {
         id
       }
     }
-  `
-  const { job } = await client.request(mutation, {
-    input: { title, description }
-  });
-  return job
+  `;
+
+  const { data: { job }} = await apolloClient.mutate({
+    mutation,
+    variables: { input: { title, description } }
+  })
+  return job;
 }
 
 export const getCompany = async (id) => {
@@ -39,8 +56,12 @@ export const getCompany = async (id) => {
         }
       }
     }
-  `
-  const { company } = await client.request(query, { id });
+  `;
+
+  const { data: { company } } = await apolloClient.query({
+    query,
+    variables: { id }
+  });
   return company;
 }
 
@@ -58,8 +79,12 @@ export const getJob = async (id) => {
         description
       }
     }
-  `
-  const { job } = await client.request(query, { id });
+  `;
+
+  const { data: { job } } = await apolloClient.query({
+    query,
+    variables: { id }
+  });
   return job;
 }
 
@@ -76,7 +101,8 @@ export const getJobs = async () => {
         title
       }
     }
-  `
-  const { jobs } = await client.request(query);
+  `;
+  
+  const { data: { jobs }} = await apolloClient.query({ query });
   return jobs;
 }
